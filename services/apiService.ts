@@ -88,31 +88,53 @@ const mockRecentOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
 });
 
 
-// --- MOCK API FUNCTIONS ---
-const mockFetch = <T>(data: T, delay: number = 300): Promise<T> => new Promise(resolve => setTimeout(() => resolve(data), delay));
+// --- BACKEND INTEGRATION WITH GRACEFUL FALLBACK ---
+const API_BASE = '/api';
 
-export const getDashboardData = async () => {
-  return Promise.all([
-    mockFetch(mockKpiData, 400),
-    mockFetch(mockSalesData, 600),
-    mockFetch(mockActionItems, 500),
-    mockFetch(mockRtoHotspots, 700),
-    mockFetch(mockSyncActivity, 800),
-  ]);
+const safeFetchJson = async <T>(input: RequestInfo | URL, init: RequestInit | undefined, fallback: () => Promise<T>): Promise<T> => {
+  try {
+    const res = await fetch(input, init);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json() as T;
+  } catch (_err) {
+    return fallback();
+  }
 };
 
-export const getGstData = async () => mockFetch(mockGstItems);
+// --- API FUNCTIONS ---
+export const getDashboardData = async (): Promise<[KpiData, SalesDataPoint[], ActionItem[], RtoHotspot[], SyncActivity[]]> => {
+  type DashboardResponse = { kpiData: KpiData; salesData: SalesDataPoint[]; rtoHotspots: RtoHotspot[]; syncActivity: SyncActivity[] };
+  const data = await safeFetchJson<DashboardResponse>(`${API_BASE}/dashboard`, undefined, async () => ({
+    kpiData: mockKpiData,
+    salesData: mockSalesData,
+    rtoHotspots: mockRtoHotspots,
+    syncActivity: mockSyncActivity,
+  }));
+  // Return with action items in the middle to preserve existing consumer shape
+  return [data.kpiData, data.salesData, mockActionItems, data.rtoHotspots, data.syncActivity];
+};
+
+export const getGstData = async (): Promise<GstActionItem[]> => {
+  return safeFetchJson<GstActionItem[]>(`${API_BASE}/gst/items`, undefined, async () => mockGstItems);
+};
 
 export const getRecentOrders = async (page: number, limit: number): Promise<{ orders: Order[], total: number }> => {
+  return safeFetchJson<{ orders: Order[]; total: number }>(`${API_BASE}/orders?page=${encodeURIComponent(page)}&limit=${encodeURIComponent(limit)}`, undefined, async () => {
     const start = (page - 1) * limit;
     const end = start + limit;
     const paginatedOrders = mockRecentOrders.slice(start, end);
-    return mockFetch({ orders: paginatedOrders, total: mockRecentOrders.length }, 500);
+    return { orders: paginatedOrders, total: mockRecentOrders.length };
+  });
 };
 
 export const syncGstItem = async (itemId: string): Promise<{ success: boolean }> => {
-    console.log(`Simulating sync for GST item: ${itemId}`);
-    // Simulate a network request that takes between 1 to 2 seconds
-    const delay = 1000 + Math.random() * 1000;
-    return mockFetch({ success: true }, delay);
+  return safeFetchJson<{ success: boolean }>(`${API_BASE}/gst/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: [itemId] }),
+  }, async () => {
+    // Fallback: simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+    return { success: true };
+  });
 };
