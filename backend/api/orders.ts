@@ -1,57 +1,120 @@
-// API route handlers for /api/orders
-// This would contain functions to handle GET, POST, PUT, DELETE requests for orders.
+import { Router } from 'express';
 
-// This is an example using an Express.js-style router.
+type OrderStatus = 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'RTO Initiated' | 'RTO Delivered';
+type RtoRiskLevel = 'Low' | 'Medium' | 'High';
 
-// import { Router } from 'express';
-// import { getOrders, getOrderById, flagOrderForRtoReview } from '../services/orderService';
+interface CustomerDetails {
+  name: string;
+  email: string;
+  phone: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    pinCode: string;
+  };
+}
 
-// const router = Router();
+interface Shipment {
+  awbNumber: string;
+  logisticsProvider: 'Shiprocket' | 'Delhivery';
+  status: OrderStatus;
+  chargedWeightKg: number;
+}
 
-/**
- * GET /api/orders
- * Fetches a paginated list of orders.
- */
-// router.get('/', async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10 } = req.query;
-//     const orders = await getOrders(Number(page), Number(limit));
-//     res.json(orders);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Failed to fetch orders.' });
-//   }
-// });
+interface Order {
+  id: string;
+  source: 'Shopify' | 'WooCommerce';
+  customer: CustomerDetails;
+  orderValue: number;
+  taxAmount: number;
+  status: OrderStatus;
+  shipment: Shipment;
+  profitability: number;
+  rtoRisk: RtoRiskLevel;
+  createdAt: string;
+  productCost: number;
+  shippingFee: number;
+  rtoCost: number;
+}
 
-/**
- * GET /api/orders/:id
- * Fetches a single order by its ID.
- */
-// router.get('/:id', async (req, res) => {
-//    try {
-//     const order = await getOrderById(req.params.id);
-//     if (!order) {
-//       return res.status(404).json({ message: 'Order not found.' });
-//     }
-//     res.json(order);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Failed to fetch order.' });
-//   }
-// });
+const router = Router();
 
-/**
- * POST /api/orders/:id/flag-rto
- * Flags an order as a high RTO risk.
- */
-// router.post('/:id/flag-rto', async (req, res) => {
-//    try {
-//     const result = await flagOrderForRtoReview(req.params.id);
-//     res.json(result);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Failed to flag order.' });
-//   }
-// });
+const STATUSES: OrderStatus[] = ['Pending','Processing','Shipped','Delivered','Cancelled','RTO Initiated','RTO Delivered'];
+const RISK_LEVELS: RtoRiskLevel[] = ['Low','Medium','High'];
 
+const NAMES = ['Ravi Kumar', 'Sunita Sharma', 'Amit Singh', 'Priya Patel', 'Vijay Gupta', 'Anjali Devi', 'Sanjay Verma'];
+const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata'];
 
-// export default router;
+const TOTAL_ORDERS = 250;
+const ordersData: Order[] = Array.from({ length: TOTAL_ORDERS }, (_, i) => {
+  const index = TOTAL_ORDERS - i; // Start from DS-1050-like numbering going down
+  const orderValue = 1000 + Math.random() * 4000;
+  const productCost = orderValue * (0.4 + Math.random() * 0.2);
+  const shippingFee = 80 + Math.random() * 40;
+  const taxAmount = orderValue * 0.18;
+  const isRto = Math.random() < 0.2;
+  const rtoCost = isRto ? (shippingFee * 1.5) : 0;
+  const profitability = orderValue - productCost - shippingFee - taxAmount - rtoCost;
+  const status = isRto ? (Math.random() > 0.5 ? 'RTO Initiated' as const : 'RTO Delivered' as const) : STATUSES[Math.floor(Math.random() * 5)];
+  const shipmentStatus = status;
 
-console.log("Order API routes module loaded.");
+  return {
+    id: `DS-${1050 - i}`,
+    source: Math.random() > 0.5 ? 'Shopify' : 'WooCommerce',
+    customer: {
+      name: NAMES[i % NAMES.length],
+      email: `customer${i}@example.com`,
+      phone: '9876543210',
+      address: {
+        street: `${123 + i} Main St`,
+        city: CITIES[i % CITIES.length],
+        state: 'State',
+        pinCode: `${100001 + i}`,
+      },
+    },
+    orderValue,
+    taxAmount,
+    status,
+    shipment: {
+      awbNumber: `AWB${987654321 - i}`,
+      logisticsProvider: Math.random() > 0.5 ? 'Shiprocket' : 'Delhivery',
+      status: shipmentStatus,
+      chargedWeightKg: 0.5 + Math.random(),
+    },
+    profitability,
+    rtoRisk: RISK_LEVELS[Math.floor(Math.random() * RISK_LEVELS.length)],
+    createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+    productCost,
+    shippingFee,
+    rtoCost,
+  };
+});
+
+router.get('/', (req, res) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 10));
+  const start = (page - 1) * limit;
+  const end = start + limit;
+  const paginatedOrders = ordersData.slice(start, end);
+  res.json({ orders: paginatedOrders, total: ordersData.length });
+});
+
+router.get('/:id', (req, res) => {
+  const order = ordersData.find(o => o.id === req.params.id);
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found.' });
+  }
+  res.json(order);
+});
+
+router.post('/:id/flag-rto', (req, res) => {
+  // Simulate flagging an order; in a real app, persist this change
+  const order = ordersData.find(o => o.id === req.params.id);
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found.' });
+  }
+  res.json({ success: true, message: `Order ${order.id} flagged for RTO review.` });
+});
+
+export default router;

@@ -4,19 +4,27 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n web,api -c blue,green \"vite\" \"tsx watch backend/index.ts\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backend:start": "tsx backend/index.ts",
+    "backend:dev": "tsx watch backend/index.ts"
   },
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "recharts": "^3.1.2",
     "react-hot-toast": "2.4.1",
-    "papaparse": "5.4.1"
+    "papaparse": "5.4.1",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

@@ -1,29 +1,25 @@
 // Main backend entry point
-// This would typically start a server (e.g., Express, Fastify)
-// and set up API routes, middleware, etc.
+import express from 'express';
+import cors from 'cors';
+import ordersRouter from './api/orders';
+import dashboardRouter from './api/dashboard';
+import gstRouter from './api/gst';
 
-console.log("Backend server starting...");
+const app = express();
+const PORT = Number(process.env.PORT) || 3001;
 
-/**
- * Example of how this file might look with Express.js:
- *
- * import express from 'express';
- * import orderRoutes from './api/orders';
- * import { connectToDatabase } from './db';
- *
- * const app = express();
- * const PORT = process.env.PORT || 3001;
- *
- * app.use(express.json());
- *
- * // Connect to the database
- * connectToDatabase();
- *
- * // API Routes
- * app.use('/api/orders', orderRoutes);
- *
- * app.listen(PORT, () => {
- *   console.log(`D2C-Sync backend running on port ${PORT}`);
- * });
- *
- */
+app.use(cors());
+app.use(express.json());
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true });
+});
+
+// API Routes
+app.use('/api/orders', ordersRouter);
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/gst', gstRouter);
+
+app.listen(PORT, () => {
+  console.log(`D2C-Sync backend running on port ${PORT}`);
+});
